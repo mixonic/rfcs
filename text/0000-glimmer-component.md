@@ -22,7 +22,7 @@ A glimmer-component's own root element apperas within its template. This greatly
 
 A Glimmer component may be invoked like `<my-component />` instead of `{{my-component}}`. The new syntax
 
- - allows great expressivity for data-dependent attributes and arguments (consider `{{my-component class=(concat "foo-" type) }}` vs `<my-component class="foo-{{type}}" />`
+ - allows greater expressivity for data-dependent attributes and arguments (consider `{{my-component class=(concat "foo-" type) }}` vs `<my-component class="foo-{{type}}" />`
  - reduces ambiguity between component invocations and data bindings (is `{{your-age}}` a component invocation or a property in the local scope?).
  - is more familiar to HTML-competent learners
 
@@ -89,13 +89,13 @@ In HTML, every attribute value is necessarily either a string or completely abse
 
  - boolean values express the addition or removal of the attribute. So given `isReady = true`, then
  
-     <my-checkbox checked={{isReady}} />
-     
-     will result in the HTML attribute `checked`, not `checked="true"`. When the value is false, the `checked` attribute will be entirely absent.
+        <my-checkbox checked={{isReady}} />
+    
+    will result in the HTML attribute `checked`, not `checked="true"`. When the value is false, the `checked` attribute will be entirely absent.
      
  - function values result in a property set on the HTML Element. So
  
-     <some-component onclick={{myFunction}}
+        <some-component onclick={{myFunction}}
      
      installs an event handler implemented equivalent to `element.onclick = myFunction`.
      
@@ -125,7 +125,7 @@ TODO: do we still want opt-in two-way binding, ala `mut`? What is our solution f
 
 ### Blocks
 
-Glimmer components accept blocks and yield block parameters, just like traditioanl Ember components:
+Glimmer components accept blocks and yield block parameters, just like traditional Ember components:
 
     <power-select as |choice|>
       {{choice}}
@@ -261,7 +261,7 @@ This is intended to support the mental connection between invocation and definit
 
 Should the distinction between traditional components and Glimmer components have anything to do with the distinction between Ember's pre-ES2015 class system and ES2015 classes?
 
-No, because ES2015 class syntax is defined as syntactic sugar for regular old ES5 prototypical inheritance. In other words, the choice of switching to Glimmer components and the choice of switching to ES2015 classes are necessarily independent of each other. It should totally be possible for current Ember.Component's to use ES2015 class syntax, so it can't be a Glimmer-component-specific thing.
+No, because ES2015 class syntax is defined as syntactic sugar for regular old ES5 prototypical inheritance. In other words, the choice of switching to Glimmer components and the choice of switching to ES2015 classes are necessarily independent of each other. It should totally be possible for current Ember.Components to use ES2015 class syntax, so it can't be a Glimmer-component-specific thing.
 
 That said, we should strive for consistent coding style throughout community documentation and learning materials, and teaching Glimmer components in terms of ES2015 classes seems like a good idea.
 
