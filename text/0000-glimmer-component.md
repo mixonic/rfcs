@@ -16,7 +16,7 @@ Community best-practice has evolved overwhelmingly in favor of "data down, actio
 
 ## Template-based control over a component's root element
 
-A glimmer-component's own root element apperas within its template. This greatly simplifies the learning experience for all HTML-competent learners who are starting with Ember. It reduces the overall API surface (no more `tagname`, `attributeBindings`, `classNameBindings`, etc).
+A glimmer-component's own root element appears within its template. This greatly simplifies the learning experience for all HTML-competent learners who are starting with Ember. It reduces the overall API surface (no more `tagname`, `attributeBindings`, `classNameBindings`, etc).
 
 ## HTML-like syntax
 
@@ -39,7 +39,7 @@ The design is divided into the following sections:
  
  - "Template Invocation Syntax" explains how to call a Glimmer component from another template.
  - "Template Definition Syntax" explains what goes inside a component's own template.
- - "Javascript Syntax" addresses concerns like "can my comonent's class be a plain old ES2015 `class`? What ECMA features can we use to define component's implementation?"
+ - "Javascript Syntax" addresses concerns like "can my component's class be a plain old ES2015 `class`? What ECMA features can we use to define component's implementation?"
  - "Javascript API" explains the semantics of the code that you would put into a component's Javascript module.
  - "Ecosystem adoption" explains how both application authors and addon authors can gradually adopt Glimmer components without causing incompatibilities.
 
@@ -54,7 +54,7 @@ fragment: a component that results in zero or more than one top-most DOM Element
 
 ## Template Invocation Syntax
 
-The naming rules for Glimmer components follow the existing rules for comopnent names: they must contain a dash (or be namespaced via `::` as described in the [Module Unification RFC](https://github.com/emberjs/rfcs/blob/6caed4c882e7be94af1d1e9fb0d723db725c691c/text/0143-module-unification.md)). This prevents any component from colliding with a future HTML tag (the dash is reserved for custom elements within the HTML specification).
+The naming rules for Glimmer components follow the existing rules for component names: they must contain a dash (or be namespaced via `::` as described in the [Module Unification RFC](https://github.com/emberjs/rfcs/blob/6caed4c882e7be94af1d1e9fb0d723db725c691c/text/0143-module-unification.md)). This prevents any component from colliding with a future HTML tag (the dash is reserved for custom elements within the HTML specification).
 
 Like HTML tags, Glimmer components have both an abbreviated self-closing form and an expanded form:
 
@@ -141,7 +141,7 @@ Glimmer components can invoke traditional components. Traditional components can
 
 Glimmer components can still be invoked using curly syntax! This is important for easy compatibility, and it may be desirable for some kinds of components to always be used via curlies (particularly components that are providing control flow behaviors like `liquid-if` or custom forms of `#each`).
 
-When invoked in curly syntax, you get only arguments, not attributes (since we can't distinguish the two). Your bindings are still one-way. TODO: am I missing any edge cases here? Is there a reason to make component authors explicitly declare which invocatio syntax they support?
+When invoked in curly syntax, you get only arguments, not attributes (since we can't distinguish the two). Your bindings are still one-way. TODO: am I missing any edge cases here? Is there a reason to make component authors explicitly declare which invocation syntax they support?
 
 
 ## Template Definition Syntax
@@ -206,9 +206,9 @@ Therefore, we make a rule that *the top-level element in a component's template 
 This allows both use cases to coexist: the top-level element defines the component's HTML tag, while any inner uses of its own name are recursive invocations:
 
     <display-folder>
-     {{#each children as |child|}}
+     {{#each @folder.children as |child|}}
        {{#if child.isFolder}}
-         <display-folder folder=child />
+         <display-folder @folder={{child}} />
        {{else}}
          <div>{{child.name}}</div>
        {{/if}}
@@ -243,7 +243,7 @@ And thus implicitly allow any component to become a fragment if it doesn't satis
 
  - the addition of an extra element at the end of a template suddenly changes the whole meaning of your component from "normal component" to "fragment component". Since their semantics differ in important ways, this will cause surprising breakage, like missing HTML attributes. TODO: the attribute ambiguity problem could go away if we make it an error to pass attributes to a fragment unless the fragment explicitly uses `@@attributes`.
  
- - fragments need to allow component invocation as their first element. If that first element is not contained within a `<fragment>` marker, it creates a treacherous difference from the rule defined in the Recurisve Invocation section ("the top-level element in a component's template is never treated as a component invocation"). TODO: we could address this concern by replacing that rule with a different syntax that prevents invocation.
+ - fragments need to allow component invocation as their first element. If that first element is not contained within a `<fragment>` marker, it creates a treacherous difference from the rule defined in the Recursive Invocation section ("the top-level element in a component's template is never treated as a component invocation"). TODO: we could address this concern by replacing that rule with a different syntax that prevents invocation.
 
 TODO: if we can statically address the downsides of implicit fragments, it would be really nice to not require `<fragment>`, especially to support people who are just breaking up existing piles of HTML into templates.
 
@@ -271,7 +271,7 @@ That said, we should strive for consistent coding style throughout community doc
 
 TODO. Constraints:
 
- - for future compatibility, comonents need to at least be unambiguously tagged as components. So exporting a plain function or arbitrary class would not be sufficient.
+ - for future compatibility, components need to at least be unambiguously tagged as components. So exporting a plain function or arbitrary class would not be sufficient.
  
  - we could require only a class decorator
  
@@ -322,7 +322,7 @@ TODO.
 
 How much of current `computed` do we want to bake into Glimmer? Can we do more automatic tracking?
 
-Plain getters are ideal from a developer ergonomics standpoint. But without some smart depenency tracking, they spread contagious volatility throughout the component hierarchy.
+Plain getters are ideal from a developer ergonomics standpoint. But without some smart dependency tracking, they spread contagious volatility throughout the component hierarchy.
 
 It would not be unreasonable to adopt a rule like Vue, which says that all automatically tracked properties need to be present at initialization (so that getters can be installed for them). 
 
@@ -334,13 +334,13 @@ Can we drop `set`? Probably not?
 
 Observer support. 
 
-Event support. (This may be debateable -- if we keep event support, lets make sure it's an explicitly designed API and not sneaking in any existing semantics)
+Event support. (This may be debatable -- if we keep event support, lets make sure it's an explicitly designed API and not sneaking in any existing semantics)
 
 All APIs for managing the top-level element (tagName, attributeBindings, classNameBindings, ariaRole, isVisible).
 
 actions hash (is this relevant for closure actions? if yes, we should replace with a decorator instead.)
 
-elementId: not a thing. (We can do event dispatch with a WeakMap over Elements instead). People should do whatever they want with their Element id, it doesn't have special semantics or retrictions in Glimmer components.
+elementId: not a thing. (We can do event dispatch with a WeakMap over Elements instead). People should do whatever they want with their Element id, it doesn't have special semantics or restrictions in Glimmer components.
 
 event methods (`click`, `keyDown`, etc): not a thing. You can use element modifiers within the template instead. TODO: should we offer a decorator alternative too?
 
