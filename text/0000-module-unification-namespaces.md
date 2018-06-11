@@ -10,10 +10,9 @@
 
 Ember addons can use the module unification filesystem layout (i.e. an addon
 with a `src/` directory) in place of the legacy `app/` or `addon/` folders. The
-`src/` folder encapsulates a module unification namespace, and Ember
-applications can access components, helpers, and services from that namespace.
-Usually this takes the form of an invocation of the style
-`my-namespace::my-thing`.
+`src/` folder encapsulates a module unification "package", and Ember
+applications can access components, helpers, and services from that package.
+Accessing a component from a package requires the `{{use}}` helper.
 
 ## Motivation
 
@@ -24,16 +23,115 @@ example of components from another namespace or within an addon namespace being
 invoked as `{{my-namespace::my-component}}` in the section [Addon
 modules](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#addon-modules).
 
-The syntax of `::` allows us to specify an **explicit** namespace for an
-invocation. The lookup should only occur within the prefixed namespace. The RFC
-described this explicit behavior. If our design stops here, an addon author
-would need to type `{{my-addon::` before any component/helper/service
-invocations.
+The syntax of `::` allowed us to specify an **explicit** namespace for an
+invocation. The lookup would only occur within the prefixed namespace. The RFC
+described this explicit behavior.
+
+Around the same time the Ember community was working on the Module Unification
+design NPM announced a new feature: Scoped packages. Scoped
+packages have a composite name in the format `${scope}/${packageName}`.
+For example:
+
+```js
+// Import the default export of the moment package.
+// Often this is node_modules/moment/index.js
+import moment from 'moment';
+
+// Import the default export of a scoped package.
+// For example node_modules/@angular/router/index.js
+import { RouterModule } from '@angular/router';
+```
+
+**The addition of `@npmscope/` as a valid part of package names is in conflict with
+the original design of Module Unification namespace invocation syntax.** For
+example here are several invocation examples which would be valid presuming
+Module Unifications' original namespace proposal, NPM scopes, and angle bracket
+invocation syntax:
+
+```hbs
+{{#@npmscope/package-name::component-name}}
+  Some content.
+{{/@npmscope/package-name::component-name}}
+
+{{#@npmscope/package-name}}
+  Some content. Would invoke an implict component "main" in the package.
+{{/@npmscope/package-name}}
+
+<@Npmscope/PackageName::Name>
+  Some content.
+</@Npmscope/PackageName::Name>
+
+<@Npmscope/PackageName>
+  Some content.
+</@Npmscope/PackageName>
+```
+
+These examples are in violation of several design constraints:
+
+- **Use of `@` when invoking a component from a scoped package should be avoided.**
+  Recent versions of Ember and Ember RFCs have introduced the sigil `@` to
+  templates with a specific meaning. `{{@someArg}}` would read an argument pass to
+  a component, and arguments are themselves passed with the `@` prefix. For
+  example `<MyComponent @someArg={{someObj}}>`. Arguments can also be invoked
+  (`{{@someArg}}` per [RFC 226](https://github.com/emberjs/rfcs/blob/master/text/0226-named-blocks.md#unified-renderable-syntax)) or be created from a block (`<@someArg= >` per [RFC
+  317](https://github.com/emberjs/rfcs/blob/named-block-syntax/text/317-named-block-syntax.md#summary)). As the meaning of `@` is very specific and important in Ember templates,
+  we should not create visual ambiguity and confusion by using it for component
+  lookup.
+- **Use of `/` when invoking a component from a scoped package should be avoided.**
+  When using angle brackets multiple closing tags are very difficult to
+  disambiguate from multiple closing tags. We’ve already discouraged use of `/` in
+  component names by disallowing in Module Unification layout apps. An example for
+  visual comparison:
+    - `</@Npmscope/PackageName::Name>`
+    - `</@Npmscope></PackageName::Name>`
+- **NPM package names should be treated as literal strings.** The issues here arose
+  because we made an assumption that NPM package names would be a single word or
+  a dasherized series of words. That was incorrect. We should instead assume that
+  new features may be added to NPM in the future. Our invocation solution should
+  treat NPM package names as strings where any characters would be valid.
+
+I suggest two further constraints:
+
+- **Use of scopes should not be discouraged.** It could be tempting to accept a design
+  which works well for “normal” npm packages but requires more effort for users of
+  scoped packages. By accepting one of these options we would a) make Ember more
+  difficult to learn since you must learn two different solutions for the same
+  problem of addon component invocation and b) by making un-scoped packages more
+  ergonomic we would discourage addon authors from using the scoped packages
+  feature. In practice, scoped packages seem like a good feature for authors to
+  consider and in some corporate settings use of them may not be optional.
+- **Resolution rules should be consistent across parts of Ember.** For example
+  normalization rules for package names in templates and in service injections
+  should be the same. Given that a developer is using Ember Data they should not
+  refer to it in some places as EmberData and others as `ember-data`.
+
+This RFC describes a new helper `{{use}}` for explicit importing of a component or
+helper from a package. This replaces the `::` syntax.
+
+- **Introduce a `{{use}}` helper which is a logical subset of JavaScript’s
+  `import`.** This will be used to make all imports explicit and declarative. It
+  will also have the side effect of making isolation of the `{{component}}` helper
+  to a narrow scope of components inherit in that helper's design. More on this
+  below.
+- **Drop the single line package+name invocation syntax (`::`)**. This syntax is the root
+  cause of our issues. Later in this document I present two alternatives that
+  strive to maintain it, but I remain unconvinced of their value. I'm making an
+  assumption that for most addons they are used only in one or two templates
+  making this a low-burden. The most notable exceptions to that assumption may be
+  a) truthy helpers and b) translation helpers.
+- **Drop implicit "main" rules from module unification.** Because implicit main is a
+  *resolution rule* and not an invocation syntax rule, there is no way for us to
+  know if `<Foo />` is an app component or a package name + main without
+  significant analysis of the program (with a build-time resolver). As a runtime
+  resolver is sure to be part of common Ember usage for a long while, it seems
+  beneficial to remove this ambiguity. Additionally, that whole-program knowledge
+  is needed to disambiguate this case may make it more difficult to write tooling
+  for templates.
 
 This RFC makes the additional suggestion that addons have an **implicit**
 namespace. This makes writing an addon much like writing an app. Things in the
 `src/` directory are invoked by their names, and things in other namespaces
-require the `::` syntax.
+require `{{use}}`.
 
 ## Detailed design
 
@@ -46,8 +144,34 @@ so filenames used below may have alternative forms that are valid.
 
 An addon name of `gadget` or `gadget-lib` is used in these examples.
 
-Additionally I'll be using `{{` to invoke components in examples. It is implied
+Additionally I'll be using `{{` or `<` to invoke components in examples. It is implied
 that `(component` would work with the string version of the `{{` invocation.
+
+### The `{{use}}` helper
+
+The `{{use}}` helper is a keyword in Glimmer templates with unique syntax.
+Its functionality is a subset of the ES `import` keyword, but the syntax is
+different.
+
+We can use similar terminology as the [ES `import`
+spec](https://www.ecma-international.org/ecma-262/6.0/#sec-imports) to describe
+`{{use}}`:
+
+* *UseDeclaration*:
+  * `{{` `use` ImportsList FromClause `}}`
+* *ImportsList*:
+  * *ImportSpecifier*
+  * *ImportsList*, *ImportSpecifier*
+* *ImportSpecifier*:
+  * *ImportedBinding*
+  * *IdentifierName* `as` *ImportedBinding*
+* *FromClause*:
+  * `from` *ModuleSpecifier*
+* *ModuleSpecifier*
+  *StringLiteral*
+* *ImportedBinding*
+  *BindingIdentifier*
+
 
 ### Explicit namespaces
 
