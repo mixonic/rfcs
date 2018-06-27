@@ -8,16 +8,24 @@
 
 TODO:
 
+* Summary should talk about migrating addons to the new system
 * Unify language. I think we want to call these "packages" instead of
   "namespaces". In this draft I use the terms too loosly.
 * Component/template section should talk about `{{component}}`
 * Component/template section should talk about `prelude.hbs`
 * Section on service injection must define `source` argument
+* Service namespace section should have more examples.
 * Section on registration APIs need to be reviewed
 * Downsides need updating, see [scratchpad](https://paper.dropbox.com/doc/Module-Unification-Namespace-Scratchpad-wbwwqafYnhNxXqY7SNIpB#:uid=000286165742384854025306&h2=Downsides-of-this-solution)
-* Ember resolver section needs updating
+* Ember resolver section needs updating, still has `::` examples
+* Can codemods exist for ember-data injections, etc? Example of ember-data migration path
+* hype blog post
 
 ## Summary
+
+* TODO: People probably weren't thinking about addons in MU in general.
+* TODO: How does the second sentence impact me? Use an example? Maybe don't go into detail here.
+* TODO: Focus on how it impact users.
 
 Ember addons can use the module unification filesystem layout (i.e. an addon
 with a `src/` directory) in place of the legacy `app/` or `addon/` folders. The
@@ -29,6 +37,8 @@ Additionally some conveniences of Module Unification, such as implicit invocatio
 of an addon's `main`, are no longer to be included in Module Unfication.
 
 ## Motivation
+
+* TODO: Promote the bold sentence to the top here?
 
 [RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
 introduced a new filesystem layout for Ember applications we've called "Module
@@ -42,14 +52,18 @@ invocation. The lookup would only occur within the prefixed namespace. The RFC
 touches on these lookup rules and the syntax for explicit invocation only lightly.
 
 Contemporaneous with the Module Unification discussion in ember, NPM announced a new feature: Scoped packages. Scoped
-packages have a composite name in the format `${scope}/${packageName}`.
+packages have a composite name in the format `@${scope}/${packageName}`.
 For example:
 
 ```js
+// import from a "traditional" NPM package.
+//
 // Import the default export of the moment package.
 // Often this is node_modules/moment/index.js
 import moment from 'moment';
 
+// Import from a "scoped" NPM package.
+//
 // Import the default export of a scoped package.
 // For example node_modules/@angular/router/index.js
 import { RouterModule } from '@angular/router';
@@ -130,6 +144,8 @@ These are the problems and constraints that motivate this RFC.
 
 ### Removal of RFC \#143 Module Unification features
 
+* TODO: Link to examples of main usage
+
 The following features from RFC \#143 are removed from the updated design:
 
 - **Drop the single line package+name syntax (`::`)**. This syntax is the root
@@ -170,7 +186,9 @@ namespace are defined by the files in the addon's `src/` directory.
 
 Both addons and app have a namespace. For this reason writing Module Unification
 addon and app code should be very consistent. Modules in the
-`src/` directory are invoked by their bare names, and invoking/injecting/looking up things from another namespace will require a special syntax.
+`src/` directory are invoked by their bare names, and invoking/injecting/looking up things from another namespace will require a special API.
+
+A summary of new behaviors follows (specific detailed designs each have a section of this RFC):
 
 * Invoking a component, helper, or service without an explicit namespace
   will always look to the **implicit** namespace of that lookup. For an addon
@@ -218,7 +236,8 @@ propose adding that information via an AST transform and argument to
 `inject.service`. This additional information provided by Ember CLI at build
 time mirrors how `source` is already a compile-time addition for templates.
 
-For example the following file:
+For example given a service `main` in the addon `gadget`, an injection
+will maintain the `gadget` namespace:
 
 ```js
 // gadgets/src/services/main.js
@@ -229,7 +248,7 @@ export default Service.extend({
 });
 ```
 
-Would inject a service `maguffin` from the addon while preserving the implicit
+This snippet injects a service `maguffin` from the addon while preserving the implicit
 namespace of `gadgets` (`gadgets/src/services/maguffin.js`). The implicit
 namespace is encoded at build time by an AST transform which adds a `source`
 option to the injection. The post-transform file would look like:
@@ -448,6 +467,8 @@ export default Ember.Component.extend({
 
 ### Explicit namespaces for `owner` APIs
 
+* TODO: Add `owner.` to examples
+
 Owner objects (the `ApplicationInstance` instance) in Ember should have new
 options introduced that allow developers to programmatically interact with these
 features.
@@ -496,6 +517,8 @@ namespace and source are added features to the container. The following changes
 are suggested:
 
 **unregister**
+
+* TODO: define absolute specifier
 
 This API accepts a fullName and removes an entry in the registry and clears any
 instances of it from the singleton caches (including the singleton instance
