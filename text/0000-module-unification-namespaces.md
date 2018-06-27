@@ -220,7 +220,7 @@ time mirrors how `source` is already a compile-time addition for templates.
 
 For example the following file:
 
-```
+```js
 // gadgets/src/services/main.js
 import Service, { inject } from '@ember/service';
 
@@ -234,7 +234,7 @@ namespace of `gadgets` (`gadgets/src/services/maguffin.js`). The implicit
 namespace is encoded at build time by an AST transform which adds a `source`
 option to the injection. The post-transform file would look like:
 
-```
+```js
 // gadgets/src/services/main.js
 import Service, { inject } from '@ember/service';
 
@@ -454,7 +454,7 @@ features.
 
 #### lookup
 
-```
+```js
 lookup(fullName, {
   source, // Optional source of the lookup
   namespace // Explicit namespace
@@ -463,7 +463,7 @@ lookup(fullName, {
 
 #### factoryFor
 
-```
+```js
 factoryFor(fullName, {
   source, // Optional source of the lookup
   namespace // Explicit namespace
@@ -472,7 +472,7 @@ factoryFor(fullName, {
 
 #### resolveRegistration
 
-```
+```js
 resolveRegistration(fullName, {
   source, // Optional source of the lookup
   namespace // Explicit namespace
@@ -481,7 +481,7 @@ resolveRegistration(fullName, {
 
 #### hasRegistration
 
-```
+```js
 hasRegistration(fullName, {
   source, // Optional source of the lookup
   namespace // Explicit namespace
@@ -600,14 +600,14 @@ that addon into the `src/` tree of the app.
 
 For example a classic addon:
 
-```
+```hbs
 {{! gadgets/app/templates/components/try-me.hbs }}
 Try me.
 ```
 
 Would cause a file to be generated:
 
-```
+```js
 // src/ui/components/try-me/template.js
 rexport default from 'gadgets/app/templates/components/try-me';
 ```
