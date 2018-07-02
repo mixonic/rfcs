@@ -8,8 +8,6 @@
 
 TODO:
 
-* Component/template section should talk about `{{component}}`
-* Component/template section should talk about `prelude.hbs`
 * Service namespace section should have more examples.
 * Section on registration APIs need to be reviewed
 * Downsides need updating, see [scratchpad](https://paper.dropbox.com/doc/Module-Unification-Namespace-Scratchpad-wbwwqafYnhNxXqY7SNIpB#:uid=000286165742384854025306&h2=Downsides-of-this-solution)
@@ -410,6 +408,74 @@ from 'ember-power-select'}}
 {{! invokes other-package-name/src/ui/components/ComponentName/component.js }}
 <ComponentName />
 ```
+
+### Impacts of `{{use}}` on the `{{component}}` helper
+
+The `{{component}}` helper that exists in Ember today can look up any component
+in an application or addon. All components share a single namespace (all modules
+are merged into `app/`) and `{{component 'foo-bar'}}` simply resolves a full
+name of `component:foo-bar`.
+
+This design has a notable flaw: If a template uses the `{{component}}` helper
+then **all components from the app or addons** must be in memory when the
+template is rendered so they can be synchronously resolved. This is a behavior
+of the `{{component}}` helper we would not like to persist into the module
+unification design.
+
+This RFC proposes that the only way to access a component or helper from an
+addon package is via the `{{use}}` helper. **A complementary proposal of this
+RFC is that the `{{component}}` helper is that it can invoke any symbol
+introduced by `{{use}}`.**
+
+For example the following are valid uses of `{{component}}` in Ember today:
+
+```hbs
+{{! will resolve `component:foo-bar`, could be in an app or addon}}
+{{component 'foo-bar'}}
+
+{{! will read the value of the binding and resolve that string, could be in an app or addon}}
+{{component someBindingToAString}}
+
+{{#some-component-yielding-component as |closureComponent|}}
+  {{! invoke a closure component }}
+  {{component closureComponent}}
+{{/some-component}}
+```
+
+In a module unification template (a template in `src/`) there is no way to
+invoke a component from an addon without `{{use}}`. Therefor:
+
+* The same template in module unification cannot be referencing any addon via
+  the "component name string" argument style.
+* To use a component from an addon the `{{use}}` helper is required.
+
+```hbs
+{{! will resolve `component:foo-bar`, must be from the app. May be top-level or local lookup}}
+{{component 'foo-bar'}}
+
+{{! will read the value of the binding and resolve that string, must be from the app. May be top-level or local lookup}}
+{{component someBindingToAString}}
+
+{{#some-component-yielding-component as |closureComponent|}}
+  {{! invoke a closure component }}
+  {{component closureComponent}}
+{{/some-component}}
+
+{{! invoke gadgets/src/ui/component/gadgets/component.js}}
+{{use foo-bar from 'gadgets'}}
+{{component foo-bar}}
+```
+
+Since the import of a component from an addon is explicit, even with the `{{component}}`
+helper, it is easy to analyze templates and tree-shake addon modules even
+with the `{{component}}` helper. It would remain impossible to tree shake
+app modules when the `{{component}}` helper is present, but with other
+affordances like local lookup available to aid in tree shaking many common cases
+are solved in this approach.
+
+### `prelude.hbs`
+
+TODO: Document `prelude.hbs`
 
 ### Implicit packages for services
 
