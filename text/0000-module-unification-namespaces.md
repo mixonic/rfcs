@@ -1,4 +1,4 @@
-# Module Unification Namespaces
+# Module Unification Packages
 
 - Start Date: 2018-03-02
 - RFC PR:
@@ -8,12 +8,8 @@
 
 TODO:
 
-* Summary should talk about migrating addons to the new system
-* Unify language. I think we want to call these "packages" instead of
-  "namespaces". In this draft I use the terms too loosly.
 * Component/template section should talk about `{{component}}`
 * Component/template section should talk about `prelude.hbs`
-* Section on service injection must define `source` argument
 * Service namespace section should have more examples.
 * Section on registration APIs need to be reviewed
 * Downsides need updating, see [scratchpad](https://paper.dropbox.com/doc/Module-Unification-Namespace-Scratchpad-wbwwqafYnhNxXqY7SNIpB#:uid=000286165742384854025306&h2=Downsides-of-this-solution)
@@ -23,18 +19,29 @@ TODO:
 
 ## Summary
 
-* TODO: People probably weren't thinking about addons in MU in general.
-* TODO: How does the second sentence impact me? Use an example? Maybe don't go into detail here.
-* TODO: Focus on how it impact users.
+[RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
+introduced a new filesystem layout for Ember applications we've called "Module
+Unification".
 
 Ember addons can use the module unification filesystem layout (i.e. an addon
 with a `src/` directory) in place of the legacy `app/` or `addon/` folders. The
 `src/` folder encapsulates a module unification "package", and Ember
 applications can access components, helpers, and services from that package.
-Accessing a component or helper from a package requires the `{{use}}` helper.
 
-Additionally some conveniences of Module Unification, such as implicit invocation
-of an addon's `main`, are no longer to be included in Module Unfication.
+This RFC rejects some parts of the Module Unification RFC, such as
+`::` component invocation syntax and implicit invocation
+of an addon's `main`. These changes are largely motivated by conflicts between
+these designs and new features in Ember and NPM.
+
+This RFC describes fully how packages work in Ember, and how apps and addons will migrate
+from "classic" `app/` and `addon/` folders to the modern `src/` folder.
+It introduces new APIs:
+
+* Accessing a component or helper from a package requires the `{{use}}` helper.
+* The service injection API gains a new argument `package`. It also gains
+  an argument `source` which Ember CLI will add to all invocation with
+  an AST transform.
+* `lookup`, `factoryFor` and other owner APIs gain new `package` and `source` APIs.
 
 ## Motivation
 
@@ -42,13 +49,12 @@ of an addon's `main`, are no longer to be included in Module Unfication.
 
 [RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
 introduced a new filesystem layout for Ember applications we've called "Module
-Unification". The RFC described semantics for "namespaces" and the concrete
-example of components from another namespace or within an addon namespace being
-invoked as `{{my-namespace::my-component}}` in the section [Addon
-modules](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#addon-modules).
+Unification". The RFC described semantics for ["Addon modules"](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#addon-modules) and the concrete
+example of components from an addon being
+invoked as `{{my-addon::my-component}}`.
 
-The syntax of `::` was intended to allow us to specify an **explicit** namespace for an
-invocation. The lookup would only occur within the prefixed namespace. The RFC
+The syntax of `::` was intended to allow us to specify an **explicit** package for an
+invocation. The lookup would only occur within the prefixed package name. The RFC
 touches on these lookup rules and the syntax for explicit invocation only lightly.
 
 Contemporaneous with the Module Unification discussion in ember, NPM announced a new feature: Scoped packages. Scoped
@@ -70,9 +76,9 @@ import { RouterModule } from '@angular/router';
 ```
 
 **The addition of `@npmscope/` as a valid part of package names is in conflict with
-the original design of Module Unification namespace invocation syntax.** For
+the original design of Module Unification package invocation syntax.** For
 example here are several invocation examples which would be valid presuming
-Module Unification's original namespace proposal, NPM scopes, and angle bracket
+Module Unification's original package proposal, NPM scopes, and angle bracket
 invocation syntax:
 
 ```hbs
@@ -178,26 +184,26 @@ The following features from RFC \#143 are removed from the updated design:
 The removal of these features of course requires that we provide alternatives.
 These follow.
 
-### New Namespace APIs
+### New Package APIs
 
 Without using the `owner` API, only **services**, **components**, and **helpers** from a module unification
-namespace can be invoked by an application. The modules contained in an addon's
-namespace are defined by the files in the addon's `src/` directory.
+package can be invoked by an application. The modules contained in an addon's
+package are defined by the files in the addon's `src/` directory.
 
-Both addons and app have a namespace. For this reason writing Module Unification
+Both addons and app have a package. For this reason writing Module Unification
 addon and app code should be very consistent. Modules in the
-`src/` directory are invoked by their bare names, and invoking/injecting/looking up things from another namespace will require a special API.
+`src/` directory are invoked by their bare names, and invoking/injecting/looking up things from another package will require a special API.
 
 A summary of new behaviors follows (specific detailed designs each have a section of this RFC):
 
-* Invoking a component, helper, or service without an explicit namespace
-  will always look to the **implicit** namespace of that lookup. For an addon
+* Invoking a component, helper, or service without an explicit package
+  will always look to the **implicit** package of that lookup. For an addon
   or app, this means that first local lookup is considered for resolution then
   their top-level directory for that module under their own `src/`.
-* To invoke a component or helper from another namespace, the `{{use}}` helper
+* To invoke a component or helper from another package, the `{{use}}` helper
   is defined by this RFC.
-* To implicitly inject a service from a namespace the `source` argument
-  is added to the injection API. To explicitly inject a service from another namespace the `package` argument is defined
+* To implicitly inject a service from a package the `source` argument
+  is added to the injection API. To explicitly inject a service from another package the `package` argument is defined
   for the injection API.
 * To look up or resolve an arbitrary module in local lookup the `source`
   argument is defined for `lookup`, `factoryFor`, and `resolveRegistration`. To explicitly look up or resolve an arbitrary module the `package` argument is added.
@@ -208,9 +214,9 @@ To help the RFC be approachable I'll describe behaviors using plausible
 filenames. An actual implementation for any of these examples would be
 based on Module Unification specifiers. Most filenames used in examples have alternative forms which are valid.
 
-#### Implicit namespaces for templates
+### Implicit packages for templates
 
-An application using Module Unification already has an implicit namespace.
+An application using Module Unification already has an implicit package.
 From an app you can invoke
 `{{try-me}}` and it looks in the `src/ui/components/` directory. As an app author
 you are not required to be
@@ -226,59 +232,17 @@ Metadata on compiled Glimmer templates already contains the path on disk of
 a template. This metadata should be expanded to also include an absolute
 specifier for the template.
 
-Using the `source` meta data on a template (or another appropriate build-time value), all lookups from that template will determine the namespace of the templates
+Using the `source` meta data on a template (or another appropriate build-time value), all lookups from that template will determine the package of the templates
 and use it for any implicit invocations in the template itself.
 
-#### Implicit namespaces for services
-
-Service injections do not currently have source information encoded. Here we
-propose adding that information via an AST transform and argument to
-`inject.service`. This additional information provided by Ember CLI at build
-time mirrors how `source` is already a compile-time addition for templates.
-
-For example given a service `main` in the addon `gadget`, an injection
-will maintain the `gadget` namespace:
-
-```js
-// gadgets/src/services/main.js
-import Service, { inject } from '@ember/service';
-
-export default Service.extend({
-  maguffin: inject()
-});
-```
-
-This snippet injects a service `maguffin` from the addon while preserving the implicit
-namespace of `gadgets` (`gadgets/src/services/maguffin.js`). The implicit
-namespace is encoded at build time by an AST transform which adds a `source`
-option to the injection. The post-transform file would look like:
-
-```js
-// gadgets/src/services/main.js
-import Service, { inject } from '@ember/service';
-
-export default Service.extend({
-  maguffin: inject('maguffin', {
-    source: 'gadgets/src/services/main'
-  })
-});
-```
-
-All uses of Service `inject` would have `source` added, including those in
-components or helpers.
-
-Note: Because services are not configured in the Ember module unification config to be
-an available as a nested collection, services are never
-subject for local lookup resolution despite using `source`.
-
-#### The `{{use}}` helper
+### The `{{use}}` helper
 
 This RFC describes a new helper `{{use}}` for explicit importing of a component or
 helper from a package. This replaces the `::` syntax in templates.
 
 The `{{use}}` helper's functionality is a subset of JavaScript's `import` keyword, but the syntax is
 different. `{{use}}` is required to bring a component or helper from another
-namespace (and not from a directory or file) into the template's scope as a symbol.
+package (and not from a directory or file) into the template's scope as a symbol.
 
 The `{{use}}`
 helper has unique syntax compared to any keywords present in Glimmer today
@@ -296,7 +260,7 @@ To start with an example: In this template the `{{use}}` helper imports a compon
 
 The semantics of `{{use}}` are the following:
 
-- `{{use}}` introduces a symbol to the namespace that corresponds to the
+- `{{use}}` introduces a symbol to template that corresponds to the
   component or helper (in the above example `Widget`) from the package (in the above example `gadget`). Normal
   invocation rules apply to the symbol: To be invoked with `{{` it must have a
 `-`, to be invoked with a `<` it must start with a capital letter.
@@ -333,7 +297,8 @@ spec](https://www.ecma-international.org/ecma-262/6.0/#sec-imports):
 * *FromClause*:
   * `from` *ModuleSpecifier*
 * *ModuleSpecifier*
-  * *StringLiteral* - The module unification namespace being imported. Usually
+  * *StringLiteral* - The module unification package from which a components
+    or helper is being imported. Usually
     an NPM package name.
 * *ImportedBinding*
   * *BindingIdentifier* - The symbol used to reference the import.
@@ -446,11 +411,54 @@ from 'ember-power-select'}}
 <ComponentName />
 ```
 
-### Explicit namespaces for service injections
+### Implicit packages for services
+
+Service injections do not currently have source information encoded. Here we
+propose adding that information via an AST transform and argument to
+`inject.service`. This additional information provided by Ember CLI at build
+time mirrors how `source` is already a compile-time addition for templates.
+
+For example given a service `main` in the addon `gadget`, an injection
+will maintain the `gadget` package:
+
+```js
+// gadgets/src/services/main.js
+import Service, { inject } from '@ember/service';
+
+export default Service.extend({
+  maguffin: inject()
+});
+```
+
+This snippet injects a service `maguffin` from the addon while preserving the implicit
+package of `gadgets` (`gadgets/src/services/maguffin.js`). The implicit
+package is encoded at build time by an AST transform which adds a `source`
+option to the injection. The post-transform file would look like:
+
+```js
+// gadgets/src/services/main.js
+import Service, { inject } from '@ember/service';
+
+export default Service.extend({
+  maguffin: inject('maguffin', {
+    source: 'gadgets/src/services/main'
+  })
+});
+```
+
+All uses of Service `inject` would have `source` added, including those in
+components or helpers.
+
+Note: Because services are not configured in the Ember module unification config to be
+an available as a nested collection, services are never
+subject for local lookup resolution despite using `source`.
+
+
+### Explicit packages for service injections
 
 The argument `package` is added to the `inject` API to specify an
-explicit namespace. The namespaces provided by this argument is absolute.
-Any implicit namespace is over-ruled.
+explicit package. The packages provided by this argument is absolute.
+Any implicit package is over-ruled.
 
 For example:
 
@@ -465,47 +473,45 @@ export default Ember.Component.extend({
 });
 ```
 
-### Explicit namespaces for `owner` APIs
-
-* TODO: Add `owner.` to examples
+### Explicit packages for `owner` APIs
 
 Owner objects (the `ApplicationInstance` instance) in Ember should have new
 options introduced that allow developers to programmatically interact with these
 features.
 
-#### lookup
+##### `owner.lookup()`
 
 ```js
 lookup(fullName, {
   source, // Optional source of the lookup
-  namespace // Explicit namespace
+  package // Explicit package
 });
 ```
 
-#### factoryFor
+##### `owner.factoryFor()`
 
 ```js
 factoryFor(fullName, {
   source, // Optional source of the lookup
-  namespace // Explicit namespace
+  package // Explicit package
 });
 ```
 
-#### resolveRegistration
+##### `owner.resolveRegistration()`
 
 ```js
 resolveRegistration(fullName, {
   source, // Optional source of the lookup
-  namespace // Explicit namespace
+  package // Explicit package
 });
 ```
 
-#### hasRegistration
+##### `owner.hasRegistration()`
 
 ```js
 hasRegistration(fullName, {
   source, // Optional source of the lookup
-  namespace // Explicit namespace
+  package // Explicit package
 });
 ```
 
@@ -513,7 +519,7 @@ hasRegistration(fullName, {
 
 Several owner APIs are specific to registrations. Without the introduction of
 absolute specifiers, several of these APIs have ambiguous cases that arise once
-namespace and source are added features to the container. The following changes
+package and source are added features to the container. The following changes
 are suggested:
 
 **unregister**
@@ -532,8 +538,8 @@ unregister clear all resolved items with the passed `fullName` regardless of
 registry and not resolved?
 
 We lack a canonical representation of some factories after adding source and
-namespace features. For example "main" export from an addon can be referenced by
-several different lookup paths (with an explicit namespace, with any of several
+package features. For example "main" export from an addon can be referenced by
+several different lookup paths (with an explicit package, with any of several
 sources). In the future, we're considering absolution specifiers the path
 forward.
 
@@ -542,26 +548,26 @@ attempt to un-register a factory already looked up. This has the effect of
 removing the cache question entirely and focusing this interface on the
 registry.
 
-**inject**
+##### `owner.inject()`
 
-Injections by type will still pertain to source or namespace based lookups. This
-APIs should not be extended to accept `source` and `namespace` since that is not
+Injections by type will still pertain to source or package based lookups. This
+APIs should not be extended to accept `source` and `package` since that is not
 a canonical way to refer to a specific lookup.
 
-**register, registerOptions**
+##### `owner.register()`, `owner.registerOptions()`
 
 As much as possible in Ember registry APIs should be isolated from the container
-proper.  These APIs should not be extended to accept `source` and `namespace`
+proper.  These APIs should not be extended to accept `source` and `package`
 since that is not a canonical way to refer to a specific lookup.
 
-**registeredOption, registeredOptions**
+##### `owner.registeredOption()`, `owner.registeredOptions()`
 
-These APIs should not be extended to accept `source` and `namespace` since there
+These APIs should not be extended to accept `source` and `package` since there
 is no way to register options for those lookups by canonical name.
 
 ### Adding support to the Ember Resolver
 
-The Ember resolver is responsible for accepting the `source` and `namespace`
+The Ember resolver is responsible for accepting the `source` and `package`
 arguments in addition to the `fullName` being requested and returning a resolved
 path.
 
@@ -571,7 +577,7 @@ to the name of the resolved item, thus it needs not only a factory in response
 to a lookup but also a key to manage that cache.
 
 Instead we will use the `expandLocalLookup` API and extend it to include a third
-argument for the explicit namespace. The arguments to `exapandLocalLookup` will
+argument for the explicit package. The arguments to `exapandLocalLookup` will
 be:
 
 * `specifier` - the Ember specifier for this lookup (similar to a partial
@@ -581,7 +587,7 @@ be:
   compatibility). For all entries in the `src/` directory this should be an
   absolute specifier. Ember's resolver will only perform local lookup if an
   absolute specifier is passed.
-* `namespace` - the explicit namespaces of a lookup (the part before `::` if
+* `package` - the explicit package of a lookup (the part before `::` if
    present)
 
 For example:
@@ -597,9 +603,8 @@ resolver.expandLocalLookup('template:x-inner', 'template:/my-app/components/x-ou
 The return value from Ember's resolver implementation will be:
 
 * `null` if there is no matching resolution
-* `null` is there is a matching resolution that is top level (non local, non namespaced)
-* An absolute specifier if there is a matching local or namespaced resolution
-
+* `null` is there is a matching resolution that is top level (non local, not from a package)
+* An absolute specifier if there is a matching local or package-scoped resolution
 
 ### The addon migration path
 
@@ -631,8 +636,8 @@ Try me.
 Would cause a file to be generated:
 
 ```js
-// src/ui/components/try-me/template.js
-rexport default from 'gadgets/app/templates/components/try-me';
+// my-app/src/ui/components/try-me/template.js
+export default from 'gadgets/app/templates/components/try-me';
 ```
 
 In this way classic addon would still merge into the `src` of a module
@@ -640,7 +645,6 @@ unification app as a transition step, preserving its API during the transition
 period.
 
 These re-exports will be created for components, helpers, and services.
-
 
 ### Planned Deprecations
 
@@ -655,7 +659,7 @@ as smooth as possible via the following steps:
 
 ## How we teach this
 
-The guides must be updated to document namespace invocations for component,
+The guides must be updated to document package invocations for component,
 templates, and addons.
 
 A page should be added to the section "Addons and Dependencies" documenting the
