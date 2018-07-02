@@ -14,6 +14,11 @@ TODO:
 * Ember resolver section needs updating, still has `::` examples
 * Can codemods exist for ember-data injections, etc? Example of ember-data migration path
 * hype blog post
+* Add alternative section re: Retain `::` syntax. Add a map in JS that maps from npm scoped
+  packages to local names. Customizable. Perhaps packages can define their own
+  defaults.
+* Chris is concerned package doesn't scream "noun" strongly enough. Maybe
+  add a glossary. Maybe a glossary in the "how we teach this"
 
 ## Summary
 
@@ -230,7 +235,7 @@ Metadata on compiled Glimmer templates already contains the path on disk of
 a template. This metadata should be expanded to also include an absolute
 specifier for the template.
 
-Using the `source` meta data on a template (or another appropriate build-time value), all lookups from that template will determine the package of the templates
+Using the `source` metadata on a template (or another appropriate build-time value), all lookups from that template will determine the package of the templates
 and use it for any implicit invocations in the template itself.
 
 ### The `{{use}}` helper
@@ -411,6 +416,10 @@ from 'ember-power-select'}}
 
 ### Impacts of `{{use}}` on the `{{component}}` helper
 
+TODO: Should make resolution vs. invocation clear. string version does both
+resolution and invocation, with symbol does just invocation.
+TODO: Should just say {{component}} is for app. If you want a dynamic-ish thing like you used to do, then use `if`. And huzzah, templates are now tree-shakable.
+
 The `{{component}}` helper that exists in Ember today can look up any component
 in an application or addon. All components share a single namespace (all modules
 are merged into `app/`) and `{{component 'foo-bar'}}` simply resolves a full
@@ -461,7 +470,7 @@ invoke a component from an addon without `{{use}}`. Therefor:
   {{component closureComponent}}
 {{/some-component}}
 
-{{! invoke gadgets/src/ui/component/gadgets/component.js}}
+{{! invoke gadgets/src/ui/components/foo-bar/component.js}}
 {{use foo-bar from 'gadgets'}}
 {{component foo-bar}}
 ```
@@ -522,8 +531,11 @@ subject for local lookup resolution despite using `source`.
 
 ### Explicit packages for service injections
 
+TODO: ember data examples, and teaching section should DI effective preamble for
+common injections.
+
 The argument `package` is added to the `inject` API to specify an
-explicit package. The packages provided by this argument is absolute.
+explicit package. The package provided by this argument is absolute.
 Any implicit package is over-ruled.
 
 For example:
