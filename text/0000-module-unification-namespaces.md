@@ -484,7 +484,156 @@ are solved in this approach.
 
 ### `prelude.hbs`
 
-TODO: Document `prelude.hbs`
+In many cases `{{use}}` will be more verbose than today's `app/`-merged global
+namespace. For example where today Ember apps might write:
+
+```hbs
+{{#power-select options=names as |name|}}
+  {{name}}
+{{/power-select}}
+```
+
+In an MU world with angle bracket invocation we will write:
+
+```hbs
+{{use Select from 'ember-power-select'}}
+<Select @options=names as |name|>
+  {{name}}
+</Select>
+```
+
+The overhead of an extra line is not expected to be burdensome. From a developer
+experience perspective:
+
+* There is no `{{use}}` statement for any component or helper from the app
+  itself.
+* An explicit import makes it easy for multiple addons to share the same
+  single-word component name without conflict. This is a notable benefit.
+  Both could even be used in the same template if one is re-named.
+* In many apps the component from a given addon is not used in hundreds or tens
+  of templates, but in only a few. For example an app using Google Maps via
+  ember-g-map may only have a single template showing a map even if there are
+  hundreds of templates. The extra verbosity in that case isn't burdensome.
+* For apps that are extremely large it is common for an addon like
+  ember-power-select to be wrapped in an app-specific component providing
+  appropriate defaults or UI for that app. Thus the `{{use}}` will often be
+  minimized to a few files even if the addon component is rendered in many places.
+
+Despite this, in some common use cases `{{use}}` may be too verbose a tool for bringing
+components and helpers into scope. For example:
+
+* A translation helper used throughout a codebase, for example `{{t 'name'}}`
+  would mean writing `{{use t from 'ember-intl'}}` at the top of every file.
+* The popular ember-truthy-helpers package adds
+  operator-ish helpers to Ember templates such as `(and itemA itemB)`. Importing
+  these in each template would be painful.
+
+Addons which provide globally available helpers or components are a valid use
+case we would like to address. To do so this RFC suggests a `prelude.hbs` file
+which is effectively prepended to every template in an app.
+
+A list of alternatives to `prelude.hbs` highlights the constraints `presude.hbs`
+intends to satisfy:
+
+* The addon author can use a post-install generator to re-export their component
+  into the app's package scope, making it act like any other component or helper
+  in the app. This is effective but not very upgrade-friendly, as the app and
+  not the addon decide what will be makde global.
+* The addon author can use a broccoli transform to add their re-export to the
+  applications `src/` tree. This technique would be better, but is clumsy to
+  implement and makes writing good tempalate tooling impossible.
+* The addon author can write a broccoli transform to alter hbs templates and add
+  appropriate `{{use}}` statements. This suffers the same flaws as the previous
+  suggestion.
+
+#### Detailed design for `prelude.hbs`
+
+An Ember application can provide a file `src/prelude.hbs`. At compile time this
+file is prepended to every template in the application. For example given the
+following two files:
+
+```hbs
+{{! src/prelude.hbs }}
+{{use Select from 'ember-power-select'}}
+```
+
+```hbs
+{{! src/ui/routes/posts/template.hbs }}
+<Select @options=names as |name|>
+  {{name}}
+</Select>
+```
+
+At build time and before template compilation they would be combined to a
+single file:
+
+```hbs
+{{! src/prelude.hbs }}
+{{use Select from 'ember-power-select'}}
+{{! src/ui/routes/posts/template.hbs }}
+<Select @options=names as |name|>
+  {{name}}
+</Select>
+```
+
+Other packages (other `src/` directories used for the app, such as those of addons) 
+may also provide a `src/prelude.hbs` these will be prepended to each template
+before the app's prelude in the order addons are loaded (configurable in the
+`ember-addons` section of an addon's `package.json`).
+
+For example given the following files from dependency addons and an app:
+
+```hbs
+{{! ember-intl/src/prelude.hbs }}
+{{use t from 'ember-intl'}}
+```
+
+```hbs
+{{! ember-widgets/src/prelude.hbs }}
+{{use Select from 'ember-widgets'}}
+```
+
+```hbs
+{{! my-app/src/prelude.hbs }}
+{{use Select from 'ember-power-select'}}
+```
+
+```hbs
+{{! my-app/src/ui/routes/posts/template.hbs }}
+<Select @options=names as |name|>
+  {{name}}
+</Select>
+```
+
+The concatenated output prior to template compilation would be:
+
+```hbs
+{{! ember-intl/src/prelude.hbs }}
+{{use t from 'ember-intl'}}
+{{! ember-widgets/src/prelude.hbs }}
+{{use Select from 'ember-widgets'}}
+{{! my-app/src/prelude.hbs }}
+{{use Select from 'ember-power-select'}}
+{{! my-app/src/ui/routes/posts/template.hbs }}
+<Select @options=names as |name|>
+  {{name}}
+</Select>
+```
+
+* This file contains all the information the compiler, and any template tooling,
+  will need to resolve all non-app components staticly.
+* Because the final `{{use}}` declaration always wins, the invocation of
+  `<Select>` will be from ember-power-select as the application author
+  desired. The `src/prelude.hbs` provided by an app always runs after addons,
+  and so an app has total control over what is global to its templates.
+* The template compiler may, during compilation, choose to strip `{{use}}`
+  calls that add an unused identifier to the template. As such making
+  a `{{use}}` global can still have a very low runtime and packaging overhead.
+* The unused identifier stripping is to the exclusion
+  of templates which have a `{{component}}` helper. Because a template with a
+  `{{component}}` helper does not know until runtime what component is being
+  invoked, staticly un-used identifiers must be retained for possible dynamic
+  invocation.
 
 ### Implicit packages for services
 
@@ -531,7 +680,7 @@ subject for local lookup resolution despite using `source`.
 
 ### Explicit packages for service injections
 
-TODO: ember data examples, and teaching section should DI effective preamble for
+TODO: ember data examples, and teaching section should DI effective prelude for
 common injections.
 
 The argument `package` is added to the `inject` API to specify an
