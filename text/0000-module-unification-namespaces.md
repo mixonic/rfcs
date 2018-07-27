@@ -274,16 +274,17 @@ The semantics of `{{use}}` are the following:
   component module is (semantically if not literally) performed at the time of
   `{{use}}`, not at the time of invocation. Because the symbol's value is
   already resolved when the component is invoked, there are no normalization
-  rules (`CapCase` -> `caps-case`) applied to symbols introduces by `{{use}}`.
+  rules (`CapCase` -> `caps-case`) applied to symbols introduced by `{{use}}`.
 - `{{use}}` can use `as` to map a component or helper name to a differently
   named symbol.
 - `{{use}}` can only be used to access absolute package names. There are no
   relative paths relating to file names or directories.
-- `{{use}}` introduces a symbol for the entire template. The helper, like
-  `import`, cannot be used dynamically. For example it cannot be invoked inside an `{{#if}}` block or
-  component block.
-- If a symbol introduced by `{{use}}` is already present in a template, the
-  value from `{{use}}` will overwrite any previous value.
+- `{{use}}` introduces a hoisted symbol for the entire template. The helper, like
+  `import`, must be at the top level of the template (not inside a block, element, or subexpression)
+  and cannot be used dynamically. For example it cannot be invoked inside an `{{#if}}` block.
+- If a symbol introduced by `{{use}}` is already present in a template a
+  compilation error is thrown for `Duplicate declaration ${BindingIdentifier}`.
+  This mirrors the behavior of ES imports.
 
 The syntax of `{{use}}` can be described using syntax spec language
 comparable to the [ES `import`
@@ -369,8 +370,8 @@ And what follows are several examples of valid usage.
 {{component-name}}
 
 
-{{use Name as component-name from '@npmscope/package-name'}}
-{{component-name}}
+{{use Name as scoped-package-component-name from '@npmscope/package-name'}}
+{{scoped-package-component-name}}
 ```
 
 ```hbs
@@ -381,8 +382,8 @@ And what follows are several examples of valid usage.
 <Name />
 
 
-{{use component-name as Name from '@npmscope/package-name'}}
-<Name />
+{{use component-name as ScopedPackageName from '@npmscope/package-name'}}
+<ScopedPackageName />
 ```
 
 
@@ -404,14 +405,29 @@ from 'ember-power-select'}}
 </PowerSelect>
 ```
 
-##### `{{use}}` overwrites previous values for a symbol
+##### `{{use}}` causes and error for duplicate declarations
+
+This template will throw an error `Duplicate declaration "ComponentName"`:
 
 ```hbs
 {{use ComponentName from 'package-name'}}
 {{use ComponentName from 'other-package-name'}}
 
-{{! invokes other-package-name/src/ui/components/ComponentName/component.js }}
 <ComponentName />
+```
+
+To use the second import an author must provide a unique import binding.
+
+##### `{{use}}` declaraions are hoisted
+
+Mirroring the behavior of ES `import`, `{{use}}` delcarations are hoisted
+in a template. The following is not suggested (and perhaps we should
+lint against it) but would be valid:
+
+```hbs
+<ComponentName />
+
+{{use ComponentName from 'package-name'}}
 ```
 
 ### Impacts of `{{use}}` on the `{{component}}` helper
@@ -589,11 +605,6 @@ For example given the following files from dependency addons and an app:
 ```
 
 ```hbs
-{{! ember-widgets/src/prelude.hbs }}
-{{use Select from 'ember-widgets'}}
-```
-
-```hbs
 {{! my-app/src/prelude.hbs }}
 {{use Select from 'ember-power-select'}}
 ```
@@ -610,8 +621,6 @@ The concatenated output prior to template compilation would be:
 ```hbs
 {{! ember-intl/src/prelude.hbs }}
 {{use t from 'ember-intl'}}
-{{! ember-widgets/src/prelude.hbs }}
-{{use Select from 'ember-widgets'}}
 {{! my-app/src/prelude.hbs }}
 {{use Select from 'ember-power-select'}}
 {{! my-app/src/ui/routes/posts/template.hbs }}
@@ -622,10 +631,6 @@ The concatenated output prior to template compilation would be:
 
 * This file contains all the information the compiler, and any template tooling,
   will need to resolve all non-app components staticly.
-* Because the final `{{use}}` declaration always wins, the invocation of
-  `<Select>` will be from ember-power-select as the application author
-  desired. The `src/prelude.hbs` provided by an app always runs after addons,
-  and so an app has total control over what is global to its templates.
 * The template compiler may, during compilation, choose to strip `{{use}}`
   calls that add an unused identifier to the template. As such making
   a `{{use}}` global can still have a very low runtime and packaging overhead.
@@ -634,6 +639,11 @@ The concatenated output prior to template compilation would be:
   `{{component}}` helper does not know until runtime what component is being
   invoked, staticly un-used identifiers must be retained for possible dynamic
   invocation.
+* Because duplicate declarations are not permitted (you cannot `{{use}}` two
+  things with the import binding `Select` without renaming one of them)
+  Once an addon has claimed a name in a prelude the app will not, in its own
+  templates, be able
+  to write `{{use}}` for that name without a re-assignment.
 
 ### Implicit packages for services
 
