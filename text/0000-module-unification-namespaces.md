@@ -6,11 +6,6 @@
 
 # Module Unification with Ember Addons
 
-TODO:
-
-* Section on registration APIs need to be reviewed
-* Can codemods exist for ember-data injections, etc? Example of ember-data migration path
-
 ## Summary
 
 [RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
@@ -37,9 +32,15 @@ It introduces new APIs:
   an AST transform.
 * `lookup`, `factoryFor` and other owner APIs gain new `package` and `source` APIs.
 
-## Motivation
+Throughout this document the term "absolute specifier" is used. This refers to a
+serialization of a module's identity in Module Unification. Absolute specifiers
+are not specified in
+[RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
+or anywhere else, and this RFC does not attempt or require a formal definition
+of the serialization. Traditionally we've used something like
+`component:/my-app/ui/components/foo-bar` as the absolute specifier format.
 
-* TODO: Promote the bold sentence to the top here?
+## Motivation
 
 [RFC #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md)
 introduced a new filesystem layout for Ember applications we've called "Module
@@ -144,36 +145,40 @@ These are the problems and constraints that motivate this RFC.
 
 ### Removal of RFC \#143 Module Unification features
 
-* TODO: Link to examples of main usage
-
 The following features from RFC \#143 are removed from the updated design:
 
-- **Drop the single line package+name syntax (`::`)**. This syntax is the root
-  cause of several issues in templates outlined in the motivation section. This RFC does not
-  suggest any replacement "single-line" invocation syntax in templates. The
-  `::` syntax was also implied to be used with service injections. As
-  we're removing the micro-syntax from templates, we will also remove it from
-  the service injection API.
-- **Drop implicit "main" rules from module unification.** Because implicit main is a
-  *resolution rule* and not an invocation syntax rule, there is no way for us to
-  know if `<Foo />` is an app component or a package name + main without
-  significant analysis of the program at build time. As a runtime
-  resolver is sure to be part of common Ember usage for a long while, it seems
-  beneficial not to introduce this ambiguity. Additionally, the whole-program knowledge
-  needed to disambiguate `<Foo>` may make it difficult to write tooling
-  for templates.
-- **Remove the stripping of `ember-` or `ember-cli-` prefixes from
-  package names.** [RFC #143: Module Unification - Main
-  Modules](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#main-modules).
-  describes stripping these prefixes during build time, and so invocations
-  referencing those package names can ignore the prefix.
-  For example `{{ember-simple-auth::login}}` would be incorrect for a component
-  in the ember-simple-auth addon, and `{{simple-auth::login}}` would be correct.
-  As this RFC suggests removing single-line invocation entirely, this
-  convenience is unnecessary. Ember should be conservative about how
-  it changes the names of packages. A new developer installing a package should
-  not need to internalize a bunch of naming rules. Knowing the name of the
-  package itself should be sufficient.
+* **Drop the single line package+name syntax (`::`)**. This syntax is the root
+cause of several issues in templates outlined in the motivation section. This RFC does not
+suggest any replacement "single-line" invocation syntax in templates. The
+`::` syntax was also implied to be used with service injections. As
+we're removing the micro-syntax from templates, we will also remove it from
+the service injection API.
+* **Drop implicit "main" rules from module unification.** Main modules and their
+implicit resolution was [introduced in #143](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#main-modules).
+Because implicit main is a
+*resolution rule* and not an invocation syntax rule, there is no way for us to
+know if `<Foo />` is an app component or a package name + main without
+significant analysis of the program at build time. As a runtime
+resolver is sure to be part of common Ember usage for a long while, it seems
+beneficial not to introduce this ambiguity. Additionally, the whole-program knowledge
+needed to disambiguate `<Foo>` may make it difficult to write tooling
+for templates.
+  * Resolution of "main" is not entirely removed from MU. For example
+  `src/router.js` should still be resolved via
+  `resolveRegistration('router:main')`. Only the implicit main of a package
+  is removed.
+* **Remove the stripping of `ember-` or `ember-cli-` prefixes from
+package names.** [RFC #143: Module Unification - Main
+Modules](https://github.com/emberjs/rfcs/blob/master/text/0143-module-unification.md#main-modules).
+describes stripping these prefixes during build time, and so invocations
+referencing those package names can ignore the prefix.
+For example `{{ember-simple-auth::login}}` would be incorrect for a component
+in the ember-simple-auth addon, and `{{simple-auth::login}}` would be correct.
+As this RFC suggests removing single-line invocation entirely, this
+convenience is unnecessary. Ember should be conservative about how
+it changes the names of packages. A new developer installing a package should
+not need to internalize a bunch of naming rules. Knowing the name of the
+package itself should be sufficient.
 
 The removal of these features of course requires that we provide alternatives.
 These follow.
@@ -206,7 +211,8 @@ Each of these changes is described below in detail.
 
 To help the RFC be approachable I'll describe behaviors using plausible
 filenames. An actual implementation for any of these examples would be
-based on Module Unification specifiers. Most filenames used in examples have alternative forms which are valid.
+based on Module Unification resolution rules, so most filenames used in
+examples have alternative forms which are valid.
 
 ### Implicit packages for templates
 
@@ -411,7 +417,7 @@ To use the second import an author must provide a unique import binding.
 
 ##### `{{use}}` declaraions are hoisted
 
-Mirroring the behavior of ES `import`, `{{use}}` delcarations are hoisted
+Mirroring the behavior of ES `import`, `{{use}}` declarations are hoisted
 in a template. The following is not suggested (and perhaps we should
 lint against it) but would be valid:
 
@@ -426,6 +432,8 @@ lint against it) but would be valid:
 TODO: Should make resolution vs. invocation clear. string version does both
 resolution and invocation, with symbol does just invocation.
 TODO: Should just say {{component}} is for app. If you want a dynamic-ish thing like you used to do, then use `if`. And huzzah, templates are now tree-shakable.
+TODO: Why can `{{component stringOfFoo}}` invoke `{{use Foo from
+'@some/package'}}`?
 
 The `{{component}}` helper that exists in Ember today can look up any component
 in an application or addon. All components share a single namespace (all modules
@@ -440,7 +448,7 @@ unification design.
 
 This RFC proposes that the only way to access a component or helper from an
 addon package is via the `{{use}}` helper. **A complementary proposal of this
-RFC is that the `{{component}}` helper is that it can invoke any symbol
+RFC is that the `{{component}}` may invoke any symbol
 introduced by `{{use}}`.**
 
 For example the following are valid uses of `{{component}}` in Ember today:
@@ -753,8 +761,6 @@ are suggested:
 
 **unregister**
 
-* TODO: define absolute specifier
-
 This API accepts a fullName and removes an entry in the registry and clears any
 instances of it from the singleton caches (including the singleton instance
 cache).
@@ -809,8 +815,7 @@ Instead we will use the `expandLocalLookup` API and extend it to include a third
 argument for the explicit package. The arguments to `exapandLocalLookup` will
 be:
 
-* `specifier` - the Ember specifier for this lookup (similar to a partial
-  specifier)
+* `specifier` - the Ember specifier for this lookup. `type:name`.
 * `source` - the source of the lookup. For entries in the `app/` directory this
   can continue to be a string based on `moduleName` (maintaining backwards
   compatibility). For all entries in the `src/` directory this should be an
@@ -834,7 +839,10 @@ The return value from Ember's resolver implementation will be:
 
 * `null` if there is no matching resolution
 * `null` is there is a matching resolution that is top level (non local, not from a package)
-* An absolute specifier if there is a matching local or package-scoped resolution
+* If there is a matching local or package-scoped resolution, an absolute
+specifier or other unique string mapping to the module. This string is used
+for subsequent `resolve` calls to the resolver and for maintaining the list
+of singletons in Ember's container.
 
 ### The addon migration path
 
@@ -886,6 +894,14 @@ as smooth as possible via the following steps:
 * Ensuring applications can incremental adopt the new filesystem via the "fallback resolver".
 * Ensuring Module Unification apps can continue to consume classic mode addons.
 * Ensuring classic mode apps can continue to consume Module Unification addons.
+
+### Example migration story: Ember Data
+
+TODO: Can codemods exist for ember-data injections, etc? Example of ember-data migration path
+
+### Example migration story: Ember Power Select
+
+TODO
 
 ## How we teach this
 
@@ -972,9 +988,9 @@ provide a migration path for application and addon authors to the new filesystem
 layout.
 
 However it is important to note places where this design may be limiting until
-the transition to add Module Specifiers to Ember is complete. For example there
+the transition to add absolute specifiers to Ember is complete. For example there
 is no way to use the `registry.inject` API with a packaged factory in this RFC.
-A followup RFC adding Module Specifiers to the framework would need to introduce
+A followup RFC adding absolute specifiers to the framework would need to introduce
 a solution to that omission.
 
 #### Naming and terminology alternatives:
