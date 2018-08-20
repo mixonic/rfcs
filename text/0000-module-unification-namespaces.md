@@ -8,17 +8,8 @@
 
 TODO:
 
-* Service namespace section should have more examples.
 * Section on registration APIs need to be reviewed
-* Downsides need updating, see [scratchpad](https://paper.dropbox.com/doc/Module-Unification-Namespace-Scratchpad-wbwwqafYnhNxXqY7SNIpB#:uid=000286165742384854025306&h2=Downsides-of-this-solution)
-* Ember resolver section needs updating, still has `::` examples
 * Can codemods exist for ember-data injections, etc? Example of ember-data migration path
-* hype blog post
-* Add alternative section re: Retain `::` syntax. Add a map in JS that maps from npm scoped
-  packages to local names. Customizable. Perhaps packages can define their own
-  defaults.
-* Chris is concerned package doesn't scream "noun" strongly enough. Maybe
-  add a glossary. Maybe a glossary in the "how we teach this"
 
 ## Summary
 
@@ -592,7 +583,7 @@ single file:
 </Select>
 ```
 
-Other packages (other `src/` directories used for the app, such as those of addons) 
+Other packages (other `src/` directories used for the app, such as those of addons)
 may also provide a `src/prelude.hbs` these will be prepended to each template
 before the app's prelude in the order addons are loaded (configurable in the
 `ember-addons` section of an addon's `package.json`).
@@ -690,9 +681,6 @@ subject for local lookup resolution despite using `source`.
 
 ### Explicit packages for service injections
 
-TODO: ember data examples, and teaching section should DI effective prelude for
-common injections.
-
 The argument `package` is added to the `inject` API to specify an
 explicit package. The package provided by this argument is absolute.
 Any implicit package is over-ruled.
@@ -702,11 +690,15 @@ For example:
 ```js
 export default Ember.Component.extend({
 
-  // inject node_modules/@ember/data/src/services/store.js
-  store: inject('store', { package: '@ember/data' }),
+  // inject src/services/geo.js
+  geo: inject(),
+
+  // inject node_modules/ember-stripe-service/src/services/store.js
+  checkoutService: inject('stripe', { package: 'ember-stripe-service' }),
 
   // inject node_modules/ember-simple-auth/src/services/session.js
   session: inject({ package: 'ember-simple-auth' })
+
 });
 ```
 
@@ -820,20 +812,21 @@ be:
 * `specifier` - the Ember specifier for this lookup (similar to a partial
   specifier)
 * `source` - the source of the lookup. For entries in the `app/` directory this
-  can continue to be a string based on `moduleName` (maintining backwards
+  can continue to be a string based on `moduleName` (maintaining backwards
   compatibility). For all entries in the `src/` directory this should be an
   absolute specifier. Ember's resolver will only perform local lookup if an
   absolute specifier is passed.
-* `package` - the explicit package of a lookup (the part before `::` if
-   present)
+* `package` - the explicit package of a lookup
 
 For example:
 
-```
-{{x-inner}} in src/ui/components/x-outer/template.hbs
+```js
+// {{x-inner}} in src/ui/components/x-outer/template.hbs
 resolver.expandLocalLookup('template:x-inner', 'template:/my-app/components/x-outer');
+```
 
-{{gadgets-lib::x-inner}} in src/ui/components/x-outer/template.hbs
+```js
+// {{use x-inner from 'gadgets-lib'}}{{x-inner}} in src/ui/components/x-outer/template.hbs
 resolver.expandLocalLookup('template:x-inner', 'template:/my-app/components/x-outer', 'gadgets-lib');
 ```
 
@@ -904,56 +897,91 @@ API from the perspective of an addon author.
 
 ## Drawbacks / Alternatives
 
-Continuing the current addon implementation where the `src/` directory of an
-addon is simply merged with an app's `src/` directory would be a alternative. In
-general we've found that system clumsy though, with addon's competing to claim
-helper and component names needlessly.
+#### Drawbacks of `{{use}}`
 
-The initial Module Unification RFC had this to say about invocation rules:
+The solutions described in this RFC are not without some drawbacks:
 
-> Addons should use the same namespacing that will be used by consuming apps
-> when invoking their own components and helpers from templates. For instance,
-> if the ember-power-select addon has a date-picker component that invokes
-> multiple main components, it should also invoke them in a template as
-> {{power-select::main}} or more simply as {{power-select}}  
+* The explicit `{{use` helper requires more template lines to invoke
+a component or helper from another package than the status quo "merged global
+namespace" strategy does. It also requires more lines than the "single line
+invocation" approach described in the previous Module Unification RFC.
+This RFC describes several mitigations:
+  * The `{{use` helper is only needed once for N uses of a component.
+  * Several imports from a common package can share one `{{use}}` call.
+  * Only component/helpers from a package/namespace need `{{use}}`,
+  components/helpers from the application still share an implicit namespace.
+  * `prelude.hbs` permits an application or addon author to make explicit
+  imports for all templates of their application.
+* We will need to be careful about how we teach `{{use}}`. This helper's API is
+similar enough to ES `import` that it may initially be taught as analogous to that API,
+but both the syntax and semantics are different in their details.
 
-This expresses a subset of this RFC I'll call "Mandatory Namespace". In this
-approach we would force addons to explicitly use `{{my-addon-name::` to invoke
-anything from their own `src` directory at the top level. The advantage to this
-approach is that it does not require an AST transform to be nice to use, it is
-easier for us to implement, and it is more explicit. However it has notable
-disadvantages: It is verbose and would make forking or refactoring and addon
-difficult, and it is a different set of invocation rules than application
-developers use. This would make it more complex to teach and learn.
+#### Alternative A: Map addons to package names in config
 
-Finally there is effort underway to convert Ember's container to use Glimmer DI
-directly and the Glimmer resolver. This approach is largely an incremental one
-that limits breaking changes for app and addon code. We would can this whole
-process and wait on a bigger refactor to be complete and clearly presented.
+One suggested alternative has been to retain the `::` syntax for single line
+invocation, but add a JavaScript configuration file which maps addons names to
+package names. For example:
 
-#### Explicit namespaces based on NPM scopes: Alternatives
+```js
+// src/package-map.js
+export default {
+  // Permit {{power-select::select}}
+  '@ember/power-select': 'power-select'
+}
+```
 
-Alternatively, namespaces with an NPM scope could be used for invocation. For example
-`{{@scope/package::component-name}}`.
+#### Drawbacks of explicit inject from a package
 
-This introduces some ambiguity. The syntax `{{@foo}}` already denotes accessing
-a component's `foo` argument.
+Several reviewers of this RFC have observed that the following is a terse and
+"simple" way to inject the Ember Data store:
 
-An NPM scope alone could not be invoked. To reference a package, a `/` is
-required. To eliminate the ambiguity between component arguments and scopes, any
-template literal matching the pattern `/^@.*\/.*/` would be treated as an
-invocation. This eliminates the ambiguity technically, and shows one way the two
-cases are not overly visually ambiguous.
+```js
+import Component from '@ember/component';
 
-For example:
+export default Component.extend({
+  store: inject()
+});
+```
 
-* `{{@foo/bar::baz}}` would be an invocation because it starts with an `@` and
-  contains a `/`.
-* `{{@foo/bar}}` would be an invocation because it starts with an `@` and
-  contains a `/`.
+And dislike the additional argument implied by this RFC:
 
-A further alternative: Instead of using the pattern `/^@.*\/.*/` to disambiguate
-NPM scoped invocations from component arguments, we could drop the requirement
-of using `@` at the beginning and simply use the presence of a  `/`  as a
-disambiguation. I think this would be confusing since some templates use `/` for
-paths in Ember today.
+```js
+import Component from '@ember/component';
+
+export default Component.extend({
+  store: inject({ package: 'ember-data' })
+});
+```
+
+The concept of a data store is a generic software design tool. That Ember Data
+has claimed the word "store" so effectively in the Ember user's mind that
+another library providing a "store" seems unimaginable limits the potential of
+the framework.
+
+This RFC proposes no design-level mitigation for the extra argument injecting a store.
+Ember Data itself could continue to support `store: inject()` via special-case
+broccoli tooling should it choose to.
+
+#### Drawbacks to changing the container and resolver API
+
+This RFC suggests changes to the Ember container and resolver APIs. There
+is a parallel effort underway to convert Ember's container to use Glimmer DI
+directly and the Glimmer resolver, however this more radical approach disregards
+backwards compatibility. This RFC attempts to make incremental changes and
+provide a migration path for application and addon authors to the new filesystem
+layout.
+
+However it is important to note places where this design may be limiting until
+the transition to add Module Specifiers to Ember is complete. For example there
+is no way to use the `registry.inject` API with a packaged factory in this RFC.
+A followup RFC adding Module Specifiers to the framework would need to introduce
+a solution to that omission.
+
+#### Naming and terminology alternatives:
+
+* There is some concern that "package" is not an active enough word to
+describe the `src/` directory collections of modules. "package" as an Ember term
+may be in slight conflict with "NPM packages", though in practice the two will
+often have a 1-1 relationship. An alternative considered was "namespace".
+* The file `prelude.hbs` has also been discussed with the name `preamble.hbs`.
+The two options seem interchangeable.
