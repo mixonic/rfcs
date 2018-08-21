@@ -599,7 +599,7 @@ are available:
 * The addon author can use a post-install generator to re-export their component
   into the app's package scope, making it act like any other component or helper
   in the app. This is effective but not very upgrade-friendly, as the app and
-  not the addon decide what will be makde global.
+  not the addon decide what will be make global.
 * The addon author can use a broccoli transform to add their re-export to the
   applications `src/` tree. This technique would be better, but is clumsy to
   implement and makes writing good tempalate tooling impossible.
