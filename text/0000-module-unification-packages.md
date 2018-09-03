@@ -690,7 +690,7 @@ export default Ember.Component.extend({
   // inject src/services/geo.js
   geo: inject(),
 
-  // inject node_modules/ember-stripe-service/src/services/store.js
+  // inject node_modules/ember-stripe-service/src/services/stripe.js
   checkoutService: inject('stripe', { package: 'ember-stripe-service' }),
 
   // inject node_modules/ember-simple-auth/src/services/session.js
